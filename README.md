@@ -1,11 +1,11 @@
 # WhatsApp Business API Integration — Odoo 17
-### Majaal & Xtreme
+### Majaal & Tika
 
 ---
 
 ## Overview
 
-This project integrates the WhatsApp Business API (Meta Cloud API) with Odoo 17 to automate customer communications for two companies — **Majaal** and **Xtreme**. Automated WhatsApp messages are triggered by business events such as delivery confirmations, invoice sends, sales order confirmations, and new customer registrations.
+This project integrates the WhatsApp Business API (Meta Cloud API) with Odoo 17 to automate customer communications for two companies — **Majaal** and **Tika**. Automated WhatsApp messages are triggered by business events such as delivery confirmations, invoice sends, sales order confirmations, and new customer registrations.
 
 ---
 
@@ -29,8 +29,8 @@ Customer Reply → Meta Webhook → Odoo Discuss
 
 | Company | Odoo WA Account | Meta Account |
 |---|---|---|
-| Majaal | T1Account | WhatsApp Business Account (WABA) |
-| Xtreme | XtremeAccount | Same Meta App, separate phone number |
+| Majaal | MajaalAccount | WhatsApp Business Account (WABA) |
+| Tiks | TikaAccount | Same Meta App, separate phone number |
 
 Both companies share the **same Meta App and webhook URL**. Odoo routes incoming messages to the correct account using the Phone Number ID in the webhook payload.
 
@@ -41,41 +41,29 @@ Both companies share the **same Meta App and webhook URL**. Odoo routes incoming
 ### 1. Delivery Confirmation
 - **Trigger:** Transfer (`stock.picking`) marked as Done + Signature captured
 - **Model:** `stock.picking`
-- **Template:** `majaal_delivery_order_confirmation_message_template`
+- **Template:** `majaal_delivery_order_confirmation_message_template` `Tika Delivery Order Confirmation Message Template`
 - **PDF Attached:** Delivery Slip (`stock.report_deliveryslip`) — includes customer signature
 - **Guards:** Blocks returns (`Return of` in origin), incoming pickings, duplicate sends
 
 ### 2. NPS Survey
-- **Trigger:** Transfer (`stock.picking`) marked as Done (date-based, 2 minutes after `date_done`)
+- **Trigger:** Transfer (`stock.picking`) marked as Done (date-based, 7 days after `scheduled_date`)
 - **Model:** `stock.picking`
-- **Template:** `majaal_nps_message_template`
+- **Template:** `Majaal Feedback Message template` `Tika Feedback Message Template`
 - **Guards:** Specific customer filter, duplicate prevention, company check
 
 ### 3. Invoice
 - **Trigger:** Invoice (`account.move`) posted
 - **Model:** `account.move`
-- **Template:** `majaal_invoice_message_template`
+- **Template:** `majaal_invoice_message_template` `Tika Invoice Message Template`
 - **PDF Attached:** Invoice (`account.account_invoices`)
 - **Guards:** Blocks credit notes (`out_refund`), draft invoices, duplicate sends
 
 ### 4. Sales Order / Quotation
 - **Trigger:** Sale Order (`sale.order`) state changes to `sent` (Quotation Sent)
 - **Model:** `sale.order`
-- **Template:** `majaal_quotation_message_template`
+- **Template:** `majaal_quotation_message_template` `Tika Sales Order Message Template`
 - **PDF Attached:** Quotation/Order (`sale.report_saleorder`)
 - **Guards:** Blocks draft state (prevents autosave triggers), duplicate sends
-
-### 5. New Customer Account
-- **Trigger:** New Contact (`res.partner`) created with `customer_rank >= 1`
-- **Model:** `res.partner`
-- **Template:** `majaal_new_account_creation_message_template`
-- **Guards:** Customers only, active contacts, company check, duplicate prevention
-
-### 6. WhatsApp Auto-Reply
-- **Trigger:** New message (`mail.message`) created on a WhatsApp discuss channel
-- **Model:** `mail.message`
-- **Template:** `majaal_autoreply_message_template`
-- **Logic:** Detects incoming customer messages, sends one auto-reply per conversation, ignores internal staff messages
 
 ---
 
@@ -84,10 +72,10 @@ Both companies share the **same Meta App and webhook URL**. Odoo routes incoming
 All templates are created in Meta WhatsApp Manager and synced into Odoo.
 
 ### Template Standards
-- **Category:** Utility (transactional) — not Marketing
+- **Category:** Utility (transactional) and Marketing
 - **Language:** Arabic
 - **Header Type:** Document (where PDF attached), Text (body-only messages)
-- **Phone Field:** `x_whatsapp_phone` (computed field — see Custom Fields below)
+- **Phone Field:** phone field of Contact or Sales Order models
 
 ### Report Bindings (PDF attachments)
 | Template | Report | Technical Name |
@@ -105,20 +93,6 @@ All templates are created in Meta WhatsApp Manager and synced into Odoo.
 
 ---
 
-## Custom Fields
-
-### `x_whatsapp_phone` on `res.partner`
-A computed field that returns `mobile or phone`, ensuring templates can resolve a phone number regardless of which field the contact uses.
-
-```python
-# Field: x_whatsapp_phone | Type: Char | Model: res.partner
-for rec in self:
-    rec.x_whatsapp_phone = rec.mobile or rec.phone or ''
-```
-
-**Setup:** Settings → Technical → Fields → New on `res.partner`
-
----
 
 ## Automation Rule Pattern
 
@@ -140,8 +114,6 @@ allowed_company_name = 'Company Name'
 # 6. whatsapp.composer create + action_send_whatsapp_template()
 
 # 7. Success/error logging to chatter
-
-# 8. Add CS user to channel for reply notifications
 ```
 
 ### Phone Sanitization (Libya +218)
@@ -169,30 +141,6 @@ if existing_log:
     is_valid = False
 ```
 
-### CS User Notification Pattern
-```python
-cs_user = env['res.users'].browse(CS_USER_ID)
-
-if cs_user and cs_user.exists():
-    wa_channel = env['discuss.channel'].search([
-        ('whatsapp_number', '=', formatted_phone),
-        ('wa_account_id', '=', template.wa_account_id.id),
-    ], limit=1, order='id desc')
-
-    if wa_channel:
-        existing_member = env['discuss.channel.member'].search([
-            ('channel_id', '=', wa_channel.id),
-            ('partner_id', '=', cs_user.partner_id.id),
-        ], limit=1)
-
-        if not existing_member:
-            wa_channel.write({
-                'channel_member_ids': [(0, 0, {
-                    'partner_id': cs_user.partner_id.id,
-                })]
-            })
-```
-
 ---
 
 ## Known Constraints
@@ -201,7 +149,7 @@ if cs_user and cs_user.exists():
 |---|---|
 | `import requests` blocked | Odoo sandboxes automation rule Python — no external imports allowed |
 | `return` statements blocked | Use nested `if` blocks instead of early returns |
-| One webhook URL per Meta app | Both Majaal and Xtreme share T1Account's webhook URL — Odoo routes by Phone Number ID |
+| One webhook URL per Meta app | Both Majaal and Tika share Majaal's webhook URL — Odoo routes by Phone Number ID |
 | Template variable changes need resubmission | Any edit to Variables tab requires Submit for Approval again |
 | `import` workaround | Use `whatsapp.composer` instead of direct API calls |
 
@@ -259,23 +207,9 @@ If Meta reclassifies Utility → Marketing:
 | Event | Notification Method |
 |---|---|
 | Brand new incoming message | "Notify users" field on WhatsApp Business Account |
-| Customer replies to template | CS user added as channel member via automation script |
-| Any incoming reply (catch-all) | `mail.message` automation using `message_notify()` |
 
 CS team manages all conversations via **Odoo Discuss app** — the WhatsApp number cannot be opened on WhatsApp App simultaneously (API restriction).
 
----
-
-## Opt-In Requirements
-
-Marketing broadcasts require explicit customer opt-in before sending. Opt-in is tracked via the custom field `x_whatsapp_opt_in` (Boolean) on `res.partner`.
-
-Opt-in collection methods:
-- Click-to-Chat QR code at showroom
-- Consent checkbox during new customer registration
-- SMS/email consent request for existing customers
-
----
 
 ## Files & Locations in Odoo
 
@@ -285,7 +219,6 @@ Opt-in collection methods:
 | WhatsApp Templates | WhatsApp app → Templates |
 | WhatsApp Business Accounts | WhatsApp app → Configuration → WhatsApp Business Accounts |
 | Custom Fields | Settings → Technical → Fields |
-| Scheduled Actions | Settings → Technical → Scheduled Actions |
 | Reports | Settings → Technical → Reports |
 
 ---
@@ -296,15 +229,13 @@ Opt-in collection methods:
 |---|---|---|
 | Message not sending, no chatter log | Automation rule not firing | Check trigger, domain filter, model |
 | "Template quality rating too low" | Template paused by Meta | Wait for pause to lift, check WhatsApp Manager |
-| `{{variable}}` renders blank in message | Wrong field mapped in Variables tab, not resubmitted | Fix field mapping, resubmit to Meta, sync |
+| `{{variable}}` renders blank in message | Wrong field mapped in Variables tab, not resubmitted | Fix field mapping |
 | Body shows `/` for invoice number | Invoice in draft state when automation fired | Add `record.state != 'posted'` guard |
 | PDF attached but no signature | Delivery not fully done when report rendered | Ensure `state == 'done'` check is in place |
-| CS user not notified on reply | User not a channel member | Add CS user via channel_member_ids or message_notify() |
-| Autosave triggering quotation message | State check missing/too loose | Gate on `record.state == 'sent'` not `draft` |
 | Return orders getting messages | Missing return guard | Add `move_type != 'out_refund'` / `'Return of' in origin` |
 
 ---
 
 *Last updated: July 2026*
 *Odoo Version: 17*
-*Meta Graph API Version: v17.0*
+*Meta Graph API Version: v25.0*
