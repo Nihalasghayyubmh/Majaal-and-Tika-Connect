@@ -39,7 +39,9 @@ if record.state not in ['draft', 'sent']:
 existing_log = env['mail.message'].search([
     ('model', '=', 'sale.order'),
     ('res_id', '=', record.id),
-    ('body', 'ilike', 'QUOTATION SENT:')
+    '|',
+    ('body', 'ilike', 'QUOTATION SENT:'),
+    ('body', 'ilike', 'ERROR'),
 ], limit=1)
 
 if existing_log:

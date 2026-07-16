@@ -47,9 +47,11 @@ if record.company_id.name != allowed_company_name:
 # =====================================================
 
 existing_log = env['mail.message'].search([
-    ('model', '=', 'stock.picking'),
+    ('model', '=', 'stock.picking'),  
     ('res_id', '=', record.id),
-    ('body', 'ilike', 'DELIVERY CONFIRMATION SENT')
+    '|',
+    ('body', 'ilike', 'DELIVERY CONFIRMATION SENT'),
+    ('body', 'ilike', 'ERROR'),
 ], limit=1)
 
 if existing_log:

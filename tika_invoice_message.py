@@ -45,9 +45,11 @@ if record.move_type == 'out_refund':
 # =====================================================
 
 existing_log = env['mail.message'].search([
-    ('model', '=', 'account.move'),
+    ('model', '=', 'account.move'),  
     ('res_id', '=', record.id),
-    ('body', 'ilike', 'INVOICE SENT:')
+    '|',
+    ('body', 'ilike', 'INVOICE SENT:'),
+    ('body', 'ilike', 'ERROR'),
 ], limit=1)
 
 if existing_log:

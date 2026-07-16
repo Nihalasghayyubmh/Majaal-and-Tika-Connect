@@ -47,9 +47,11 @@ if record.origin and 'Return of' in record.origin:
 # =====================================================
 
 existing_log = env['mail.message'].search([
-    ('model', '=', 'sale.order'),
+    ('model', '=', 'sale.order'),  
     ('res_id', '=', record.id),
-    ('body', 'ilike', 'SALES ORDER SENT:')
+    '|',
+    ('body', 'ilike', 'SALES ORDER SENT:'),
+    ('body', 'ilike', 'ERROR'),
 ], limit=1)
 
 if existing_log:
